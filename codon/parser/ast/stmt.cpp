@@ -329,6 +329,7 @@ const std::string Attr::Tuple = "tuple";
 const std::string Attr::Test = "std.internal.attributes.test";
 const std::string Attr::Overload = "overload";
 const std::string Attr::Export = "std.internal.attributes.export";
+const std::string Attr::Contract = "contract";
 
 FunctionStmt::FunctionStmt(std::string name, ExprPtr ret, std::vector<Param> args,
                            StmtPtr suite, Attr attributes,
@@ -552,10 +553,20 @@ void ClassStmt::parseDecorators() {
       {"len", false},          {"to_gpu", false},  {"from_gpu", false},
       {"from_gpu_new", false}, {"tuplesize", true}};
 
+  attributes.magics.clear();
+
   for (auto &d : decorators) {
     if (d->isId("deduce")) {
       attributes.customAttr.insert("deduce");
+    } else if (d->isId("packer")) {
+      attributes.magics.insert("pack");
+      attributes.magics.insert("unpack");
+      attributes.magics.insert("size");
     } else if (auto c = d->getCall()) {
+      if (c->expr->isId(Attr::Contract)) {
+        attributes.set(Attr::Contract);
+        continue;
+      }
       if (c->expr->isId(Attr::Tuple)) {
         attributes.set(Attr::Tuple);
         for (auto &m : tupleMagics)
@@ -626,7 +637,6 @@ void ClassStmt::parseDecorators() {
     tupleMagics["dict"] = true;
   }
   // Internal classes do not get any auto-generated members.
-  attributes.magics.clear();
   if (!attributes.has(Attr::Internal)) {
     for (auto &m : tupleMagics)
       if (m.second)

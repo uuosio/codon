@@ -814,6 +814,45 @@ StmtPtr SimplifyVisitor::codegenMagic(const std::string &op, const ExprPtr &typE
       items.push_back(clone(a.type));
     stmts.emplace_back(N<ReturnStmt>(
         N<DotExpr>(N<IndexExpr>(I("Tuple"), N<TupleExpr>(items)), "__elemsize__")));
+  } else if (op == "pack") {
+    // def __pack__(self: T, enc: Encoder) -> void:
+    //   self.arg1.__pack__(dest) ...
+    fargs.emplace_back(Param{"self", typExpr->clone()});
+    fargs.emplace_back(Param{"enc", I("Encoder")});
+    ret = I("NoneType");
+    for (auto &a : args)
+      stmts.emplace_back(N<ExprStmt>(N<CallExpr>(
+          N<DotExpr>(N<DotExpr>(I("self"), a.name), "__pack__"), I("enc"))));
+  } else if (op == "unpack") {
+    // def __unpack__(dec: Decoder) -> T:
+    //   return T(T1.__unpack__(dec),...)
+    fargs.emplace_back(Param{"dec", I("Decoder")});
+    ret = typExpr->clone();
+    std::vector<ExprPtr> ar;
+    ar.reserve(args.size());
+    for (auto &a : args)
+      ar.emplace_back(N<CallExpr>(N<DotExpr>(clone(a.type), "__unpack__"), I("dec")));
+    stmts.emplace_back(N<ReturnStmt>(N<CallExpr>(typExpr->clone(), ar)));
+  } else if (op == "size") {
+    // def __size__(self: T) -> int:
+    //   size: int = 0
+    //   size += self.arg1.__size__()
+    //   return size
+    fargs.emplace_back(Param{"self", typExpr->clone()});
+    stmts.emplace_back(N<AssignStmt>(I("size"), N<IntExpr>(0)));
+    for (auto &a : args) {
+      stmts.emplace_back(
+        N<AssignStmt>(
+          I("size"),
+          N<CallExpr>(
+            N<DotExpr>(I("size"), "__add__"),
+            N<CallExpr>(N<DotExpr>(N<DotExpr>(I("self"), a.name), "__size__"))
+          )
+        )
+      );
+    }
+    stmts.emplace_back(N<ReturnStmt>(I("size")));
+    ret = I("int");
   } else {
     seqassert(false, "invalid magic {}", op);
   }

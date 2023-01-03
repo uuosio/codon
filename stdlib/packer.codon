@@ -3,11 +3,63 @@
 from internal.file import _gz_errcheck
 from internal.gc import sizeof, atomic
 
-def pack(x: T, jar: Jar, T: type):
-    x.__pack__(jar)
+class Encoder(object):
+    buf: Array[byte]
+    pos: int
 
-def unpack(jar: Jar, T: type) -> T:
-    return T.__unpack__(jar)
+    def __init__(self, size):
+        self.buf = Array[byte](size)
+        self.pos = 0
+
+    def pack(self, buf: Ptr[byte], size: int):
+        str.memcpy(self.buf + self.pos, buf, size)
+        self.pos += size
+
+    def write(self, buf: Ptr[byte], size: int):
+        if self.pos + size > self.buf.len:
+            raise ValueError("write error: buffer overflow")
+        str.memcpy(self.buf.ptr + self.pos, buf, size)
+        self.pos += size
+
+    def alloc(self, size: int) -> Ptr[byte]:
+        buf = self.buf + self.pos
+        self.pos += size
+        if self.pos > self.buf.len:
+            raise ValueError("alloc error: buffer overflow")
+        return buf
+
+    def get_pos(self):
+        return self.pos
+    
+    def get_buf(self):
+        return self.buf
+
+class Decoder(object):
+    buf: Array[byte]
+    pos: int
+
+    def __init__(self, buf: Ptr[byte], size: int):
+        self.buf = Array[byte](buf, size)
+        self.pos = 0
+
+    def unpack[T](self) -> T:
+        ret = T.__unpack__(self)
+        return ret
+
+    def read(self, buf: Ptr[byte], size: int):
+        if self.pos + size > self.buf.len:
+            raise ValueError(f"read error: buffer overflow: {self.pos + size}, {self.buf.len}")
+        str.memcpy(buf, self.buf.ptr + self.pos, size)
+        self.pos += size
+
+    def get_pos(self):
+        return self.pos
+
+def pack(x: T, enc: Encoder, T: type):
+    x.__pack__(enc)
+
+def unpack(dec: Decoder, T: type) -> T:
+    return T.__unpack__(dec)
 
 def dump(x: T, f, T: type):
     x.__pack__(f.fp)
@@ -15,258 +67,310 @@ def dump(x: T, f, T: type):
 def load(f, T: type) -> T:
     return T.__unpack__(f.fp)
 
-def _write_raw(jar: Jar, p: cobj, n: int):
-    LIMIT = 0x7FFFFFFF
-    while n > 0:
-        b = n if n < LIMIT else LIMIT
-        status = int(_C.gzwrite(jar, p, u32(b)))
-        if status != b:
-            _gz_errcheck(jar)
-            raise IOError(f"pack error: gzwrite returned {status}")
-        p += b
-        n -= b
+def _write_raw(enc: Encoder, p: Ptr[byte], n: int):
+    enc.write(p, n)
+    # LIMIT = 0x7FFFFFFF
+    # while n > 0:
+    #     b = n if n < LIMIT else LIMIT
+    #     status = int(_C.gzwrite(jar, p, u32(b)))
+    #     if status != b:
+    #         _gz_errcheck(jar)
+    #         raise IOError(f"pack error: gzwrite returned {status}")
+    #     p += b
+    #     n -= b
 
-def _read_raw(jar: Jar, p: cobj, n: int):
-    LIMIT = 0x7FFFFFFF
-    while n > 0:
-        b = n if n < LIMIT else LIMIT
-        status = int(_C.gzread(jar, p, u32(b)))
-        if status != b:
-            _gz_errcheck(jar)
-            raise IOError(f"pack error: gzread returned {status}")
-        p += b
-        n -= b
+def _read_raw(dec: Decoder, p: Ptr[byte], n: int):
+    dec.read(p, n)
+    # LIMIT = 0x7FFFFFFF
+    # while n > 0:
+    #     b = n if n < LIMIT else LIMIT
+    #     status = int(_C.gzread(jar, p, u32(b)))
+    #     if status != b:
+    #         _gz_errcheck(jar)
+    #         raise IOError(f"pack error: gzread returned {status}")
+    #     p += b
+    #     n -= b
 
-def _write(jar: Jar, x: T, T: type):
+def _write(enc: Encoder, x: T, T: type):
     y = __ptr__(x)
-    _write_raw(jar, y.as_byte(), sizeof(T))
+    enc.write(y.as_byte(), sizeof(T))
 
-def _read(jar: Jar, T: type) -> T:
+def _read(dec: Decoder, T: type) -> T:
     x = T()
     y = __ptr__(x)
-    _read_raw(jar, y.as_byte(), sizeof(T))
+    dec.read(y.as_byte(), sizeof(T))
     return x
 
 # Extend core types to allow pickling
 
 @extend
 class int:
-    def __pack__(self, jar: Jar):
-        _write(jar, self)
+    def __pack__(self, enc: Encoder):
+        enc.write(__ptr__(self).as_byte(), sizeof(int))
 
-    def __unpack__(jar: Jar) -> int:
-        return _read(jar, int)
+    def __unpack__(dec: Decoder) -> int:
+        ret = int(0)
+        dec.read(__ptr__(ret).as_byte(), sizeof(int))
+        return ret
+
+    def __size__(self) -> int:
+        return 8
 
 @extend
 class Int:
-    def __pack__(self, jar: Jar):
-        _write(jar, self)
+    def __pack__(self, enc: Encoder):
+        _write(enc, self)
 
-    def __unpack__(jar: Jar) -> Int[N]:
-        return _read(jar, Int[N])
+    def __unpack__(dec: Decoder) -> Int[N]:
+        return _read(dec, Int[N])
+
+    def __size__(self) -> int:
+        return sizeof(self)
 
 @extend
 class UInt:
-    def __pack__(self, jar: Jar):
-        _write(jar, self)
+    def __pack__(self, enc: Encoder):
+        _write(enc, self)
 
-    def __unpack__(jar: Jar) -> UInt[N]:
-        return _read(jar, UInt[N])
+    def __unpack__(dec: Decoder) -> UInt[N]:
+        return _read(dec, UInt[N])
+
+    def __size__(self) -> int:
+        return sizeof(self)
 
 @extend
 class float:
-    def __pack__(self, jar: Jar):
-        _write(jar, self)
+    def __pack__(self, enc: Encoder):
+        _write(enc, self)
 
-    def __unpack__(jar: Jar) -> float:
-        return _read(jar, float)
+    def __unpack__(dec: Decoder) -> float:
+        return _read(dec, float)
+
+    def __size__(self) -> int:
+        return 8
 
 @extend
 class float32:
-    def __pack__(self, jar: Jar):
-        _write(jar, self)
+    def __pack__(self, enc: Encoder):
+        _write(enc, self)
 
-    def __unpack__(jar: Jar) -> float32:
-        return _read(jar, float32)
+    def __unpack__(dec: Decoder) -> float32:
+        return _read(dec, float32)
+
+    def __size__(self) -> int:
+        return sizeof(self)
 
 @extend
 class bool:
-    def __pack__(self, jar: Jar):
-        _write(jar, self)
+    def __pack__(self, enc: Encoder):
+        _write(enc, self)
 
-    def __unpack__(jar: Jar) -> bool:
-        return _read(jar, bool)
+    def __unpack__(dec: Decoder) -> bool:
+        return _read(dec, bool)
+
+    def __size__(self) -> int:
+        return 1
 
 @extend
 class byte:
-    def __pack__(self, jar: Jar):
-        _write(jar, self)
+    def __pack__(self, enc: Encoder):
+        _write(enc, self)
 
-    def __unpack__(jar: Jar) -> byte:
-        return _read(jar, byte)
+    def __unpack__(dec: Decoder) -> byte:
+        return _read(dec, byte)
+
+    def __size__(self) -> int:
+        return 1
 
 @extend
 class str:
-    def __pack__(self, jar: Jar):
-        _write(jar, self.len)
-        _write_raw(jar, self.ptr, self.len)
+    def __pack__(self, enc: Encoder):
+        # TODO: pack varint
+        _write(enc, byte(self.len))
+        _write_raw(enc, self.ptr, self.len)
 
-    def __unpack__(jar: Jar) -> str:
-        n = _read(jar, int)
+    def __unpack__(dec: Decoder) -> str:
+        # TODO: unpack varint
+        _n = _read(dec, byte)
+        n  = int(_n)
         p = Ptr[byte](n)
-        _read_raw(jar, p, n)
+        _read_raw(dec, p, n)
         return str(p, n)
+
+    def __size__(self) -> int:
+        return 1 + len(self)
 
 @extend
 class List:
-    def __pack__(self, jar: Jar):
+    def __pack__(self, enc: Encoder):
         n = len(self)
-        pack(n, jar)
+        # TODO: pack varint
+        pack(byte(n), enc)
         if atomic(T):
-            _write_raw(jar, (self.arr.ptr).as_byte(), n * sizeof(T))
+            _write_raw(enc, (self.arr.ptr).as_byte(), n * sizeof(T))
         else:
             for i in range(n):
-                pack(self.arr[i], jar)
+                pack(self.arr[i], enc)
 
-    def __unpack__(jar: Jar) -> List[T]:
-        n = unpack(jar, int)
+    def __unpack__(dec: Decoder) -> List[T]:
+        # TODO: unpack varint
+        _n = unpack(dec, byte)
+        n = int(_n)
         arr = Array[T](n)
         if atomic(T):
-            _read_raw(jar, (arr.ptr).as_byte(), n * sizeof(T))
+            _read_raw(dec, (arr.ptr).as_byte(), n * sizeof(T))
         else:
             for i in range(n):
-                arr[i] = unpack(jar, T)
+                arr[i] = unpack(dec, T)
         return List[T](arr, n)
 
-@extend
-class DynamicTuple:
-    def __pack__(self, jar: Jar):
-        n = len(self)
-        pack(n, jar)
-        if atomic(T):
-            _write_raw(jar, (self._ptr).as_byte(), n * sizeof(T))
-        else:
-            for i in range(n):
-                pack(self._ptr[i], jar)
+    def __size__(self) -> int:
+        size = 0
+        for x in self:
+            size += x.__size__()
+        return 1 + size
 
-    def __unpack__(jar: Jar) -> DynamicTuple[T]:
-        n = unpack(jar, int)
-        p = Ptr[T](n)
-        if atomic(T):
-            _read_raw(jar, p.as_byte(), n * sizeof(T))
-        else:
-            for i in range(n):
-                p[i] = unpack(jar, T)
-        return DynamicTuple[T](p, n)
+# @extend
+# class DynamicTuple:
+#     def __pack__(self, enc: Encoder):
+#         n = len(self)
+#         pack(n, jar)
+#         if atomic(T):
+#             _write_raw(jar, (self._ptr).as_byte(), n * sizeof(T))
+#         else:
+#             for i in range(n):
+#                 pack(self._ptr[i], jar)
 
-@extend
-class Dict:
-    def __pack__(self, jar: Jar):
-        import internal.khash as khash
+#     def __unpack__(dec: Decoder) -> DynamicTuple[T]:
+#         n = unpack(jar, int)
+#         p = Ptr[T](n)
+#         if atomic(T):
+#             _read_raw(jar, p.as_byte(), n * sizeof(T))
+#         else:
+#             for i in range(n):
+#                 p[i] = unpack(jar, T)
+#         return DynamicTuple[T](p, n)
 
-        if atomic(K) and atomic(V):
-            pack(self._n_buckets, jar)
-            pack(self._size, jar)
-            pack(self._n_occupied, jar)
-            pack(self._upper_bound, jar)
-            fsize = khash.__ac_fsize(self._n_buckets) if self._n_buckets > 0 else 0
-            _write_raw(jar, self._flags.as_byte(), fsize * sizeof(u32))
-            _write_raw(jar, self._keys.as_byte(), self._n_buckets * sizeof(K))
-            _write_raw(jar, self._vals.as_byte(), self._n_buckets * sizeof(V))
-        else:
-            pack(self._n_buckets, jar)
-            size = len(self)
-            pack(size, jar)
+#     def __size__(self) -> int:
+#         assert False
+#         return 0
 
-            for k, v in self.items():
-                pack(k, jar)
-                pack(v, jar)
+# @extend
+# class Dict:
+#     def __pack__(self, enc: Encoder):
+#         import internal.khash as khash
 
-    def __unpack__(jar: Jar) -> Dict[K, V]:
-        import internal.khash as khash
+#         if atomic(K) and atomic(V):
+#             pack(self._n_buckets, jar)
+#             pack(self._size, jar)
+#             pack(self._n_occupied, jar)
+#             pack(self._upper_bound, jar)
+#             fsize = khash.__ac_fsize(self._n_buckets) if self._n_buckets > 0 else 0
+#             _write_raw(jar, self._flags.as_byte(), fsize * sizeof(u32))
+#             _write_raw(jar, self._keys.as_byte(), self._n_buckets * sizeof(K))
+#             _write_raw(jar, self._vals.as_byte(), self._n_buckets * sizeof(V))
+#         else:
+#             pack(self._n_buckets, jar)
+#             size = len(self)
+#             pack(size, jar)
 
-        d = {}
-        if atomic(K) and atomic(V):
-            n_buckets = unpack(jar, int)
-            size = unpack(jar, int)
-            n_occupied = unpack(jar, int)
-            upper_bound = unpack(jar, int)
-            fsize = khash.__ac_fsize(n_buckets) if n_buckets > 0 else 0
-            flags = Ptr[u32](fsize)
-            keys = Ptr[K](n_buckets)
-            vals = Ptr[V](n_buckets)
-            _read_raw(jar, flags.as_byte(), fsize * sizeof(u32))
-            _read_raw(jar, keys.as_byte(), n_buckets * sizeof(K))
-            _read_raw(jar, vals.as_byte(), n_buckets * sizeof(V))
+#             for k, v in self.items():
+#                 pack(k, jar)
+#                 pack(v, jar)
 
-            d._n_buckets = n_buckets
-            d._size = size
-            d._n_occupied = n_occupied
-            d._upper_bound = upper_bound
-            d._flags = flags
-            d._keys = keys
-            d._vals = vals
-        else:
-            n_buckets = unpack(jar, int)
-            size = unpack(jar, int)
-            d.resize(n_buckets)
-            i = 0
-            while i < size:
-                k = unpack(jar, K)
-                v = unpack(jar, V)
-                d[k] = v
-                i += 1
-        return d
+#     def __unpack__(dec: Decoder) -> Dict[K, V]:
+#         import internal.khash as khash
 
-@extend
-class Set:
-    def __pack__(self, jar: Jar):
-        import internal.khash as khash
+#         d = {}
+#         if atomic(K) and atomic(V):
+#             n_buckets = unpack(jar, int)
+#             size = unpack(jar, int)
+#             n_occupied = unpack(jar, int)
+#             upper_bound = unpack(jar, int)
+#             fsize = khash.__ac_fsize(n_buckets) if n_buckets > 0 else 0
+#             flags = Ptr[u32](fsize)
+#             keys = Ptr[K](n_buckets)
+#             vals = Ptr[V](n_buckets)
+#             _read_raw(jar, flags.as_byte(), fsize * sizeof(u32))
+#             _read_raw(jar, keys.as_byte(), n_buckets * sizeof(K))
+#             _read_raw(jar, vals.as_byte(), n_buckets * sizeof(V))
 
-        if atomic(K):
-            pack(self._n_buckets, jar)
-            pack(self._size, jar)
-            pack(self._n_occupied, jar)
-            pack(self._upper_bound, jar)
-            fsize = khash.__ac_fsize(self._n_buckets) if self._n_buckets > 0 else 0
-            _write_raw(jar, self._flags.as_byte(), fsize * sizeof(u32))
-            _write_raw(jar, self._keys.as_byte(), self._n_buckets * sizeof(K))
-        else:
-            pack(self._n_buckets, jar)
-            size = len(self)
-            pack(size, jar)
+#             d._n_buckets = n_buckets
+#             d._size = size
+#             d._n_occupied = n_occupied
+#             d._upper_bound = upper_bound
+#             d._flags = flags
+#             d._keys = keys
+#             d._vals = vals
+#         else:
+#             n_buckets = unpack(jar, int)
+#             size = unpack(jar, int)
+#             d.resize(n_buckets)
+#             i = 0
+#             while i < size:
+#                 k = unpack(jar, K)
+#                 v = unpack(jar, V)
+#                 d[k] = v
+#                 i += 1
+#         return d
 
-            for k in self:
-                pack(k, jar)
+#     def __size__(self) -> int:
+#         assert False
+#         return 0
 
-    def __unpack__(jar: Jar) -> Set[K]:
-        import internal.khash as khash
+# @extend
+# class Set:
+#     def __pack__(self, enc: Encoder):
+#         import internal.khash as khash
 
-        s = set[K]()
-        if atomic(K):
-            n_buckets = unpack(jar, int)
-            size = unpack(jar, int)
-            n_occupied = unpack(jar, int)
-            upper_bound = unpack(jar, int)
-            fsize = khash.__ac_fsize(n_buckets) if n_buckets > 0 else 0
-            flags = Ptr[u32](fsize)
-            keys = Ptr[K](n_buckets)
-            _read_raw(jar, flags.as_byte(), fsize * sizeof(u32))
-            _read_raw(jar, keys.as_byte(), n_buckets * sizeof(K))
+#         if atomic(K):
+#             pack(self._n_buckets, jar)
+#             pack(self._size, jar)
+#             pack(self._n_occupied, jar)
+#             pack(self._upper_bound, jar)
+#             fsize = khash.__ac_fsize(self._n_buckets) if self._n_buckets > 0 else 0
+#             _write_raw(jar, self._flags.as_byte(), fsize * sizeof(u32))
+#             _write_raw(jar, self._keys.as_byte(), self._n_buckets * sizeof(K))
+#         else:
+#             pack(self._n_buckets, jar)
+#             size = len(self)
+#             pack(size, jar)
 
-            s._n_buckets = n_buckets
-            s._size = size
-            s._n_occupied = n_occupied
-            s._upper_bound = upper_bound
-            s._flags = flags
-            s._keys = keys
-        else:
-            n_buckets = unpack(jar, int)
-            size = unpack(jar, int)
-            s.resize(n_buckets)
-            i = 0
-            while i < size:
-                k = unpack(jar, K)
-                s.add(k)
-                i += 1
-        return s
+#             for k in self:
+#                 pack(k, jar)
+
+#     def __unpack__(dec: Decoder) -> Set[K]:
+#         import internal.khash as khash
+
+#         s = set[K]()
+#         if atomic(K):
+#             n_buckets = unpack(jar, int)
+#             size = unpack(jar, int)
+#             n_occupied = unpack(jar, int)
+#             upper_bound = unpack(jar, int)
+#             fsize = khash.__ac_fsize(n_buckets) if n_buckets > 0 else 0
+#             flags = Ptr[u32](fsize)
+#             keys = Ptr[K](n_buckets)
+#             _read_raw(jar, flags.as_byte(), fsize * sizeof(u32))
+#             _read_raw(jar, keys.as_byte(), n_buckets * sizeof(K))
+
+#             s._n_buckets = n_buckets
+#             s._size = size
+#             s._n_occupied = n_occupied
+#             s._upper_bound = upper_bound
+#             s._flags = flags
+#             s._keys = keys
+#         else:
+#             n_buckets = unpack(jar, int)
+#             size = unpack(jar, int)
+#             s.resize(n_buckets)
+#             i = 0
+#             while i < size:
+#                 k = unpack(jar, K)
+#                 s.add(k)
+#                 i += 1
+#         return s
+
+#     def __size__(self) -> int:
+#         assert False
+#         return 0

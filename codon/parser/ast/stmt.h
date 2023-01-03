@@ -432,6 +432,8 @@ struct Attr {
   const static std::string Test;
   const static std::string Overload;
   const static std::string Export;
+  const static std::string Contract;
+
   // Function module
   std::string module;
   // Parent class (set for methods only)

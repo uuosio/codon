@@ -41,6 +41,7 @@ from openmp import Ident as __OMPIdent, for_par
 from gpu import _gpu_loop_outline_template
 from internal.file import File, gzFile, open, gzopen
 from pickle import pickle, unpickle
+from packer import pack, unpack, Encoder, Decoder
 from internal.dlopen import dlsym as _dlsym
 import internal.python
 

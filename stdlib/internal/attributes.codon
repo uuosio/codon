@@ -59,3 +59,7 @@ def realize_without_self():
 @__attribute__
 def virtual():
     pass
+
+@__attribute__
+def action(name: str):
+    pass

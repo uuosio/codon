@@ -433,6 +433,8 @@ struct Attr {
   const static std::string Overload;
   const static std::string Export;
   const static std::string Contract;
+  const static std::string Table;
+  const static std::string Action;
 
   // Function module
   std::string module;

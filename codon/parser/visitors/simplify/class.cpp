@@ -8,6 +8,7 @@
 #include "codon/parser/ast.h"
 #include "codon/parser/cache.h"
 #include "codon/parser/common.h"
+#include "codon/parser/abi_generator.h"
 #include "codon/parser/visitors/simplify/simplify.h"
 
 using fmt::format;
@@ -216,12 +217,19 @@ void SimplifyVisitor::visit(ClassStmt *stmt) {
       if (autoDeducedInit.first)
         fnStmts.push_back(autoDeducedInit.first);
     }
+    bool is_contract = stmt->attributes.has(Attr::Contract);
+    bool is_table = stmt->attributes.has(Attr::Table);
+
     // Add class methods
-    for (const auto &sp : getClassMethods(stmt->suite))
+    for (const auto &sp : getClassMethods(stmt->suite)) {
       if (sp && sp->getFunction()) {
+        if (is_contract) {
+          ABIGenerator::instance().add_action(sp->getFunction());
+        }
         if (sp.get() != autoDeducedInit.second)
           fnStmts.push_back(transform(sp));
       }
+    }
 
     // After popping context block, record types and nested classes will disappear.
     // Store their references and re-add them to the context after popping

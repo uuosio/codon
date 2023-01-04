@@ -330,6 +330,8 @@ const std::string Attr::Test = "std.internal.attributes.test";
 const std::string Attr::Overload = "overload";
 const std::string Attr::Export = "std.internal.attributes.export";
 const std::string Attr::Contract = "contract";
+const std::string Attr::Table = "table";
+const std::string Attr::Action = "action";
 
 FunctionStmt::FunctionStmt(std::string name, ExprPtr ret, std::vector<Param> args,
                            StmtPtr suite, Attr attributes,

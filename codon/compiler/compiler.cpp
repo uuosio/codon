@@ -4,6 +4,7 @@
 
 #include "codon/compiler/error.h"
 #include "codon/parser/cache.h"
+#include "codon/parser/abi_generator.h"
 #include "codon/parser/peg/peg.h"
 #include "codon/parser/visitors/doc/doc.h"
 #include "codon/parser/visitors/format/format.h"
@@ -131,6 +132,15 @@ Compiler::parse(bool isCode, const std::string &file, const std::string &code,
     fmt::print(fo, "{}\n", *module);
     fclose(fo);
   }
+
+  // replace suffix of file with .abi  
+  std::string abiFile = file;
+  abiFile = abiFile.substr(0, abiFile.find_last_of(".")) + ".abi";
+  LOG("Generating abi file: {}", abiFile);
+  std::ofstream abi(abiFile);
+  abi << ABIGenerator::instance().generate();
+  abi.close();
+  // LOG("{}", ABIGenerator::instance().generate());
   return llvm::Error::success();
 }
 

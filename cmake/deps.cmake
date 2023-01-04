@@ -7,6 +7,11 @@ endif()
 include(${CPM_DOWNLOAD_LOCATION})
 
 CPMAddPackage(
+    NAME json
+    GITHUB_REPOSITORY "nlohmann/json"
+    GIT_TAG v3.11.2)
+
+CPMAddPackage(
     NAME peglib
     GITHUB_REPOSITORY "exaloop/cpp-peglib"
     GIT_TAG codon

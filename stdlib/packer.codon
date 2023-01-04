@@ -31,7 +31,7 @@ class Encoder(object):
     def get_pos(self):
         return self.pos
     
-    def get_buf(self):
+    def get_buf(self) -> Array[byte]:
         return self.buf
 
 class Decoder(object):

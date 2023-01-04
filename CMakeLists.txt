@@ -238,6 +238,7 @@ set(CODON_CPPFILES
     codon/parser/cache.cpp
     codon/parser/common.cpp
     codon/parser/peg/peg.cpp
+    codon/parser/abi_generator.cpp
     codon/parser/visitors/doc/doc.cpp
     codon/parser/visitors/format/format.cpp
     codon/parser/visitors/simplify/simplify.cpp
@@ -319,7 +320,7 @@ set(CODON_CPPFILES
     codon/util/common.cpp
     extra/jupyter/jupyter.cpp)
 add_library(codonc SHARED ${CODON_HPPFILES})
-target_include_directories(codonc PRIVATE ${peglib_SOURCE_DIR} ${toml_SOURCE_DIR}/include ${semver_SOURCE_DIR}/include)
+target_include_directories(codonc PRIVATE ${peglib_SOURCE_DIR} ${toml_SOURCE_DIR}/include ${semver_SOURCE_DIR}/include ${json_SOURCE_DIR}/include)
 target_sources(codonc PRIVATE ${CODON_CPPFILES} codon_rules.cpp omp_rules.cpp)
 if(CODON_JUPYTER)
   add_compile_definitions(CODON_JUPYTER)

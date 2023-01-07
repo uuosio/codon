@@ -183,4 +183,5 @@ struct ABIGenerator {
 };
 
 string get_type_name(ExprPtr expr);
-string extract_attr_name(string attr, vector<ExprPtr>& args);
+string extract_attr_name(string attr, vector<ExprPtr>& decorators);
+bool is_notify_action(vector<ExprPtr>& decorators);

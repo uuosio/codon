@@ -6,8 +6,8 @@ string get_type_name(ExprPtr expr) {
   return typeid(ty).name();
 }
 
-string extract_attr_name(string attr, vector<ExprPtr>& args) {
-  for (auto &a: args) {
+string extract_attr_name(string attr, vector<ExprPtr>& decorators) {
+  for (auto &a: decorators) {
     auto call = a->getCall();
     if (!call) {
       continue;
@@ -17,7 +17,7 @@ string extract_attr_name(string attr, vector<ExprPtr>& args) {
       continue;
     }
 
-    if (call->args.size() != 1) {
+    if (call->args.size() == 0) {
       continue;
     }
     auto value = call->args[0].value->getString();
@@ -28,6 +28,32 @@ string extract_attr_name(string attr, vector<ExprPtr>& args) {
     return value->strings[0].first;
   }
   return "";
+}
+
+bool is_notify_action(vector<ExprPtr>& decorators) {
+  for (auto &a: decorators) {
+    auto call = a->getCall();
+    if (!call) {
+      continue;
+    }
+
+    if (Attr::Action != call->expr->getId()->value) {
+      continue;
+    }
+
+    if (call->args.size() != 2) {
+      continue;
+    }
+
+    if (call->args[1].name != "notify") {
+      continue;
+    }
+
+    if (BoolExpr *value = dynamic_cast<BoolExpr*>(call->args[1].value.get())) {
+      return value->value;
+    }
+  }
+  return false;
 }
 
 ABIGenerator::ABIGenerator() {

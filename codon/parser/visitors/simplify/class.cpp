@@ -51,6 +51,9 @@ std::shared_ptr<FunctionStmt> generateApply(SimplifyVisitor& visitor, std::share
   // // stmts.push_back(std::make_shared<AssignStmt>(std::make_shared<IdExpr>("contract"), std::make_shared<CallExpr>(make_shared<IdExpr>(cls->name))));
   suites.push_back(std::make_shared<AssignStmt>(std::make_shared<IdExpr>("dec"), std::make_shared<CallExpr>(make_shared<IdExpr>("new_action_decoder"))));
 
+  vector<StmtPtr> actionSuites;
+  vector<StmtPtr> notifySuites;
+
   for (auto fn: actionStmts) {
     std::vector<StmtPtr> stmts;
     vector<ExprPtr> args;
@@ -81,14 +84,26 @@ std::shared_ptr<FunctionStmt> generateApply(SimplifyVisitor& visitor, std::share
     stmts.push_back(std::make_shared<ExprStmt>(std::make_shared<CallExpr>(call, args)));
     stmts.push_back(std::make_shared<ReturnStmt>());
 
-    // suites.push_back(std::make_shared<SuiteStmt>(stmts));
 
-    suites.push_back(std::make_shared<IfStmt>(std::make_shared<CallExpr>(
-        std::make_shared<DotExpr>(std::make_shared<IdExpr>("action"), "__eq__"),
-        std::make_shared<DotExpr>(std::make_shared<StringExpr>(actionName, "n"), "value")),
-        std::make_shared<SuiteStmt>(stmts)));
+    auto ifStmt = std::make_shared<IfStmt>(std::make_shared<CallExpr>(
+            std::make_shared<DotExpr>(std::make_shared<IdExpr>("action"), "__eq__"),
+            std::make_shared<DotExpr>(std::make_shared<StringExpr>(actionName, "n"), "value")),
+            std::make_shared<SuiteStmt>(stmts));
+
+    if (is_notify_action(fn->decorators)) {
+      notifySuites.push_back(ifStmt);
+    } else {
+      actionSuites.push_back(ifStmt);
+    }
   }
 
+  auto ifStmt = std::make_shared<IfStmt>(std::make_shared<CallExpr>(
+          std::make_shared<DotExpr>(std::make_shared<IdExpr>("receiver"), "__eq__"),
+          std::make_shared<IdExpr>("first_receiver")),
+          std::make_shared<SuiteStmt>(actionSuites),
+          std::make_shared<SuiteStmt>(notifySuites));
+
+  suites.push_back(ifStmt);
   auto t = std::make_shared<FunctionStmt>("apply", ret, fargs,
                                           std::make_shared<SuiteStmt>(suites), attr);
   t->setSrcInfo(ctx->cache->generateSrcInfo());

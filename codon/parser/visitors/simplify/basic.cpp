@@ -35,6 +35,7 @@ void SimplifyVisitor::visit(StringExpr *expr) {
     } else if (!p.second.empty()) {
       /// Custom prefix strings:
       /// call `str.__prefix_[prefix]__(str, [static length of str])`
+      /// TODO: convert string with `n` prefix to Name class
       exprs.push_back(
           transform(N<CallExpr>(N<DotExpr>("str", format("__prefix_{}__", p.second)),
                                 N<StringExpr>(p.first), N<IntExpr>(p.first.size()))));

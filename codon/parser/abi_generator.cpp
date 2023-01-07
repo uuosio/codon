@@ -1,13 +1,37 @@
 #include "codon/parser/common.h"
 #include "abi_generator.h"
 
-ABIGenerator::ABIGenerator() {
-
-}
-
 string get_type_name(ExprPtr expr) {
   auto& ty = *expr.get();
   return typeid(ty).name();
+}
+
+string extract_attr_name(string attr, vector<ExprPtr>& args) {
+  for (auto &a: args) {
+    auto call = a->getCall();
+    if (!call) {
+      continue;
+    }
+
+    if (attr != call->expr->getId()->value) {
+      continue;
+    }
+
+    if (call->args.size() != 1) {
+      continue;
+    }
+    auto value = call->args[0].value->getString();
+    if (!value) {
+      continue;
+    }
+
+    return value->strings[0].first;
+  }
+  return "";
+}
+
+ABIGenerator::ABIGenerator() {
+
 }
 
 string parse_abi_type(string id) {
@@ -15,6 +39,10 @@ string parse_abi_type(string id) {
     return "name";
   } else if (id == "str") {
     return "string";
+  } else if (id == "int") {
+    return "int64";
+  } else if (id == "u64") {
+    return "uint64";
   }
   return "";
 }
@@ -27,71 +55,51 @@ ABIGenerator& ABIGenerator::instance() {
   return *abi_generator;
 }
 
-void ABIGenerator::add_action(FunctionStmt *stmt) {
-  LOG("[global] {}", stmt->name);
-  bool is_action = false;
-  string action_name = "";
-  //(call 'action  (string ("sayhello")))
-  for (auto &a: stmt->decorators) {
-    auto call = a->getCall();
-    if (!call) {
+void ABIGenerator::addTable(ClassStmt *stmt, std::vector<Param>& args) {
+  auto tableName = extract_attr_name(Attr::Table, stmt->decorators);
+  auto structName = stmt->name;
+
+  ABIStruct abi_struct = {structName, "", {}};
+  ABITable abi_table = {tableName, structName, "i64", {}, {}};
+
+  for (auto &a : args) {
+    // .__vtable__.std.internal.builtin.object
+    if (a.name.find(".__vtable__") == 0) {
       continue;
     }
-
-    std::cout<<"    "<<get_type_name(a)<<":"<<a->toString()<<std::endl;
-    if (Attr::Action != call->expr->getId()->value) {
-      continue;
-    }
-
-    if (call->args.size() != 1) {
-      continue;
-    }
-        
-    auto value = call->args[0].value->getString();
-    if (!value) {
-      continue;
-    }
-
-    is_action = true;
-
-    action_name = value->strings[0].first;
-    LOG("++++++++action name: {}", action_name);
-    this->abi.actions.emplace_back(ABIAction{action_name, action_name, ""});
-    continue;
-
-    for (auto &arg: call->args) {
-      std::cout<<"      typeid:"<<get_type_name(arg.value)<<", name:"<<arg.name<<std::endl;
-      if (auto *value = arg.value->getString()) {
-          // std::cout<<"value: "<<value->getString()->getValue()<<std::endl;
-          std::cout<<"String: "<<value->strings[0].first<<", prefix: "<<value->strings[0].second<<std::endl;
-      } else if (auto *value = arg.value->getInt()) {
-          std::cout<<"Int: "<<value->value<<", suffix: "<<value->suffix<<std::endl;
-      } else if (auto *value = arg.value->getList()) {
-          std::cout<<"List: "<<value->toString()<<std::endl;
+    ABIStructField field = {a.name, ""};
+    // LOG("++++ {} {} {} {}", a.name, a.type, get_type_name(a.type), a.defaultValue);
+    if (auto* tp = dynamic_cast<InstantiateExpr*>(a.type.get())) {
+      //std.internal.types.ptr.List
+      if (auto *id = tp->typeExpr->getId()) {
+        if (id->value == "std.internal.types.ptr.List") {
+          if (auto *typeId = tp->typeParams[0]->getId()) {
+            field.type = parse_abi_type(typeId->value) + "[]";
+          }
+        }
       }
+    } else if (auto *id = a.type->getId()) {
+      field.type = parse_abi_type(id->value);
     }
+    abi_struct.fields.emplace_back(field);
+  }
+  abi.structs.emplace_back(abi_struct);
+  abi.tables.emplace_back(abi_table);
+}
+
+bool ABIGenerator::addAction(FunctionStmt *stmt) {
+  auto action_name = extract_attr_name(Attr::Action, stmt->decorators);
+  if (action_name.empty()) {
+    return false;
   }
 
-  if (!is_action) {
-    return;
-  }
+  LOG("+++++++++=action name: {}", action_name);
 
-// struct ABIStructField {
-//   string name;
-//   string type;
-// };
-
-// struct ABIStruct {
-//   string name;
-//   string base;
-//   vector<ABIStructField> fields;
-// };
+  actionStmts.push_back(stmt);
 
   ABIStruct abi_struct = {action_name, "", {}};
 
   for (auto &a: stmt->args) {
-    LOG("+++a.name: {}", a.name);
-    LOG("    a.toString(): {} {}", a.toString(), (void *)a.type.get());
     if (a.name == "self") {
       continue;
     }
@@ -100,17 +108,12 @@ void ABIGenerator::add_action(FunctionStmt *stmt) {
       continue;
     }
 
-    LOG("    type: {}", get_type_name(a.type));
     ABIStructField field = {a.name, ""};
     if (auto *value = a.type->getString()) {
       field.type = "string";
-      LOG("string type");
-        // std::cout<<"value: "<<value->getString()->getValue()<<std::endl;
-        LOG("String: {}, prefix: {}", value->strings[0].first, value->strings[0].second);
+      // LOG("String: {}, prefix: {}", value->strings[0].first, value->strings[0].second);
     } else if (auto *expr = a.type->getInt()) {
         field.type = "int64";
-        LOG("Int type");
-        LOG("Int: {}, suffix: {}", expr->value, expr->suffix);
     } else if (auto *expr = a.type->getId()) {
         field.type = parse_abi_type(expr->value);
     } else if (auto *expr = a.type->getList()) {
@@ -124,7 +127,10 @@ void ABIGenerator::add_action(FunctionStmt *stmt) {
     }
     abi_struct.fields.emplace_back(field);
   }
-  this->abi.structs.emplace_back(abi_struct);
+  
+  abi.structs.emplace_back(abi_struct);
+  abi.actions.emplace_back(ABIAction{action_name, action_name, ""});
+  return true;
 }
 
 string ABIGenerator::generate() {
@@ -133,12 +139,3 @@ string ABIGenerator::generate() {
   to_json(j, this->abi);
   return j.dump(4);
 }
-
-// nlohmann::ordered_json j;
-// ABI abi;
-// abi.version = "eosio::abi/1.2";
-// abi.structs.emplace_back(ABIStruct{"test2", "", { {"b", "int"}, {"a", "int"}}});
-// abi.structs.emplace_back(ABIStruct{"test", "", {{"a", "int"}, {"b", "int"}}});
-// to_json(j, abi);
-
-// std::cout << j.dump(4) << std::endl;

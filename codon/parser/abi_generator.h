@@ -171,10 +171,16 @@ NLOHMANN_DEFINE_ORDERED_TYPE_NON_INTRUSIVE(ABI,
 struct ABIGenerator {
   ABI abi;
 
-  ABIGenerator();  
-  void add_struct();
-  void add_action(FunctionStmt *stmt);
+  vector<FunctionStmt*> actionStmts;
+
+  ABIGenerator();
+  void addTable(ClassStmt *stmt, std::vector<Param>& args);
+  bool addAction(FunctionStmt *stmt);
+  // std::shared_ptr<FunctionStmt> generateApply(std::shared_ptr<SimplifyContext> ctx, ClassStmt *stmt, vector<FunctionStmt*> actionStmts);
   string generate();
 
   static ABIGenerator& instance();
 };
+
+string get_type_name(ExprPtr expr);
+string extract_attr_name(string attr, vector<ExprPtr>& args);

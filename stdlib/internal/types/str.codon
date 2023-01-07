@@ -2,7 +2,7 @@
 
 @pure
 @C
-def strlen(a: cobj) -> int:
+def strlen(a: cobj) -> Int[32]:
     pass
 
 @extend

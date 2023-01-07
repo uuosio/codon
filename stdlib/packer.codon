@@ -1,6 +1,3 @@
-# Copyright (C) 2022 Exaloop Inc. <https://exaloop.io>
-
-from internal.file import _gz_errcheck
 from internal.gc import sizeof, atomic
 
 class Encoder(object):
@@ -42,7 +39,7 @@ class Decoder(object):
         self.buf = Array[byte](buf, size)
         self.pos = 0
 
-    def unpack[T](self) -> T:
+    def unpack(self, T: type) -> T:
         ret = T.__unpack__(self)
         return ret
 
@@ -55,8 +52,10 @@ class Decoder(object):
     def get_pos(self):
         return self.pos
 
-def pack(x: T, enc: Encoder, T: type):
+def pack(x: T, T: type) -> Array[byte]:
+    enc = Encoder(x.__size__())
     x.__pack__(enc)
+    return enc.get_buf()
 
 def unpack(dec: Decoder, T: type) -> T:
     return T.__unpack__(dec)
@@ -205,23 +204,17 @@ class List:
     def __pack__(self, enc: Encoder):
         n = len(self)
         # TODO: pack varint
-        pack(byte(n), enc)
-        if atomic(T):
-            _write_raw(enc, (self.arr.ptr).as_byte(), n * sizeof(T))
-        else:
-            for i in range(n):
-                pack(self.arr[i], enc)
+        byte(n).__pack__(enc)
+        for i in range(n):
+            self.arr[i].__pack__(enc)
 
     def __unpack__(dec: Decoder) -> List[T]:
         # TODO: unpack varint
         _n = unpack(dec, byte)
         n = int(_n)
         arr = Array[T](n)
-        if atomic(T):
-            _read_raw(dec, (arr.ptr).as_byte(), n * sizeof(T))
-        else:
-            for i in range(n):
-                arr[i] = unpack(dec, T)
+        for i in range(n):
+            arr[i] = unpack(dec, T)
         return List[T](arr, n)
 
     def __size__(self) -> int:

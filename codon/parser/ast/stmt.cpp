@@ -568,7 +568,14 @@ void ClassStmt::parseDecorators() {
       if (c->expr->isId(Attr::Contract)) {
         attributes.set(Attr::Contract);
         continue;
+      } else if (c->expr->isId(Attr::Table)) {
+        attributes.magics.insert("pack");
+        attributes.magics.insert("unpack");
+        attributes.magics.insert("size");
+        attributes.set(Attr::Table);
+        continue;
       }
+
       if (c->expr->isId(Attr::Tuple)) {
         attributes.set(Attr::Tuple);
         for (auto &m : tupleMagics)

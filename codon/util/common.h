@@ -17,10 +17,13 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+static std::string get_file_name(const char *path) {
+  return llvm::sys::path::filename(path).str();
+}
 
 #define DBG(c, ...)                                                                    \
-  fmt::print(codon::getLogger().log, "{}" c "\n",                                      \
-             std::string(2 * codon::getLogger().level, ' '), ##__VA_ARGS__)
+  fmt::print(codon::getLogger().log, "{} {} {} " c "\n",                                      \
+             std::string(2 * codon::getLogger().level, ' '), get_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 #define LOG(c, ...) DBG(c, ##__VA_ARGS__)
 #define LOG_TIME(c, ...)                                                               \
   {                                                                                    \

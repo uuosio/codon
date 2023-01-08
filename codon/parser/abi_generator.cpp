@@ -60,17 +60,46 @@ ABIGenerator::ABIGenerator() {
 
 }
 
+std::map<string, string> abi_types_map = {
+  {"bool", "bool"},
+  {"i8", "int8"},
+  {"u8", "uint8"},
+  {"i16", "int16"},
+  {"u16", "uint16"},
+  {"i32", "int32"},
+  {"u32", "uint32"},
+  {"i64", "int64"},
+  {"u64", "uint64"},
+  {"i128", "int128"},
+  {"u128", "uint128"},
+  {"VarInt32", "varint32"},
+  {"VarUint32", "varuint32"},
+  {"float32", "float32"},
+  {"float", "float64"},
+  {"Float128", "float128"},
+  {"TimePoint", "time_point"},
+  {"TimePointSec", "time_point_sec"},
+  {"BlockTimestampType", "block_timestamp_type"},
+  {"Name", "name"},
+  {"Bytes", "bytes"},
+  {"str", "string"},
+  {"Checksum160", "checksum160"},
+  {"Checksum256", "checksum256"},
+  {"Checksum512", "checksum512"},
+  {"PublicKey", "public_key"},
+  {"Signature", "signature"},
+  {"Symbol", "symbol"},
+  {"SymbolCode", "symbol_code"},
+  {"Asset", "asset"},
+  {"ExtendedAsset", "extended_asset"}
+};
+
+
 string parse_abi_type(string id) {
-  if (id == "Name") {
-    return "name";
-  } else if (id == "str") {
-    return "string";
-  } else if (id == "int") {
-    return "int64";
-  } else if (id == "u64") {
-    return "uint64";
+  if (abi_types_map.find(id) != abi_types_map.end()) {
+    return abi_types_map[id];
   }
-  return "";
+  return id;
 }
 
 ABIGenerator& ABIGenerator::instance() {

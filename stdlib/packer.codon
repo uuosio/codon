@@ -1,5 +1,14 @@
 from internal.gc import sizeof, atomic
 
+def packed_var_u32_length(val: u32) -> int:
+	n = 0
+	while True:
+		val >>= 7
+		n += 1
+		if val <= 0:
+			break
+	return n
+
 class Encoder(object):
     buf: Array[byte]
     pos: int
@@ -9,6 +18,8 @@ class Encoder(object):
         self.pos = 0
 
     def pack(self, buf: Ptr[byte], size: int):
+        if self.pos + size > self.buf.len:
+            raise ValueError("pack error: buffer overflow")
         str.memcpy(self.buf + self.pos, buf, size)
         self.pos += size
 
@@ -18,18 +29,37 @@ class Encoder(object):
         str.memcpy(self.buf.ptr + self.pos, buf, size)
         self.pos += size
 
-    def alloc(self, size: int) -> Ptr[byte]:
+    def write_byte(self, b: byte):
+        if self.pos + 1 > self.buf.len:
+            raise ValueError("write_byte error: buffer overflow")
+        self.buf[self.pos] = b
+        self.pos += 1
+
+    def alloc(self, size: int) -> Array[byte]:
         buf = self.buf + self.pos
         self.pos += size
         if self.pos > self.buf.len:
             raise ValueError("alloc error: buffer overflow")
-        return buf
+        return Array[byte](buf, size)
 
     def get_pos(self):
         return self.pos
     
     def get_buf(self) -> Array[byte]:
         return self.buf
+
+    def pack_var_u32(self, val: u32) -> int:
+        old_pos = self.pos
+        _val = int(val)
+        while True:
+            b = u8(_val & 0x7f)
+            _val >>= 7
+            if _val > 0:
+                b |= u8(1 << 7)
+            self.write_byte(byte(int(b)))
+            if _val <= 0:
+                break
+        return self.pos - old_pos
 
 class Decoder(object):
     buf: Array[byte]
@@ -49,8 +79,26 @@ class Decoder(object):
         str.memcpy(buf, self.buf.ptr + self.pos, size)
         self.pos += size
 
+    def read_byte(self) -> byte:
+        if self.pos + 1 > self.buf.len:
+            raise ValueError("read_byte error: buffer overflow")
+        b = self.buf[self.pos]
+        self.pos += 1
+        return b
+
     def get_pos(self):
         return self.pos
+
+    def unpack_var_u32(self) -> u32:
+        by: u32 = 0u32
+        v: u32 = 0u32
+        while True:
+            b = self.read_byte()
+            v |= u32(u32(int(b)) & 0x7fu32) << by
+            by += 7u32
+            if int(b) & 0x80 == 0:
+                break
+        return v
 
 def pack(x: T, T: type) -> Array[byte]:
     enc = Encoder(x.__size__())
@@ -184,13 +232,11 @@ class byte:
 @extend
 class str:
     def __pack__(self, enc: Encoder):
-        # TODO: pack varint
-        _write(enc, byte(self.len))
+        enc.pack_var_u32(u32(self.len))
         _write_raw(enc, self.ptr, self.len)
 
     def __unpack__(dec: Decoder) -> str:
-        # TODO: unpack varint
-        _n = _read(dec, byte)
+        _n = dec.unpack_var_u32()
         n  = int(_n)
         p = Ptr[byte](n)
         _read_raw(dec, p, n)
@@ -203,14 +249,13 @@ class str:
 class List:
     def __pack__(self, enc: Encoder):
         n = len(self)
-        # TODO: pack varint
-        byte(n).__pack__(enc)
+        enc.pack_var_u32(u32(n))
         for i in range(n):
             self.arr[i].__pack__(enc)
 
     def __unpack__(dec: Decoder) -> List[T]:
         # TODO: unpack varint
-        _n = unpack(dec, byte)
+        _n = dec.unpack_var_u32()
         n = int(_n)
         arr = Array[T](n)
         for i in range(n):

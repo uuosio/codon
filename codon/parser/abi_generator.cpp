@@ -68,6 +68,7 @@ std::map<string, string> abi_types_map = {
   {"u16", "uint16"},
   {"i32", "int32"},
   {"u32", "uint32"},
+  {"int", "int64"},
   {"i64", "int64"},
   {"u64", "uint64"},
   {"i128", "int128"},

@@ -230,11 +230,10 @@ class byte:
     def __size__(self) -> int:
         return 1
 
-
 @extend
 class Array:
     def __repr__(self) -> str:
-        if isinstance(self.ptr[0], byte):
+        if isinstance(self.ptr, Ptr[byte]):
             return f"b'{str(self.ptr, self.len)}'"
         return f"{self.ptr}"
 

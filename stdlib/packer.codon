@@ -1,4 +1,5 @@
 from internal.gc import sizeof, atomic
+from internal.types.optional import unwrap
 
 def packed_var_u32_length(val: u32) -> int:
     n = 0
@@ -294,6 +295,26 @@ class List:
         for x in self:
             size += x.__size__()
         return packed_var_u32_length(u32(len(self))) + size
+
+@extend
+class Optional:
+    def __pack__(self, enc: Encoder):
+        if self:
+            enc.write_byte(byte(1))
+            unwrap(self).__unpack__(enc)
+        else:
+            enc.write_byte(byte(0))
+
+    def __unpack__(dec: Decoder) -> Optional[T]:
+        if dec.read_byte() == byte(1):
+            return Optional[T](T.__unpack__(dec))
+        else:
+            return Optional[T]()
+
+    def __size__(self) -> int:
+        if not self:
+            return 1
+        return 1 + unwrap(self).__size__()
 
 # @extend
 # class DynamicTuple:

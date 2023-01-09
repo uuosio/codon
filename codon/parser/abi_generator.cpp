@@ -124,13 +124,17 @@ void ABIGenerator::addTable(ClassStmt *stmt, std::vector<Param>& args) {
       continue;
     }
     ABIStructField field = {a.name, ""};
-    // LOG("++++ {} {} {} {}", a.name, a.type, get_type_name(a.type), a.defaultValue);
+    LOG("++++ {} {} {} {}", a.name, a.type, get_type_name(a.type), a.defaultValue);
     if (auto* tp = dynamic_cast<InstantiateExpr*>(a.type.get())) {
       //std.internal.types.ptr.List
       if (auto *id = tp->typeExpr->getId()) {
         if (id->value == "std.internal.types.ptr.List") {
           if (auto *typeId = tp->typeParams[0]->getId()) {
             field.type = parse_abi_type(typeId->value) + "[]";
+          }
+        } else if (id->value == "Optional") {
+          if (auto *typeId = tp->typeParams[0]->getId()) {
+            field.type = parse_abi_type(typeId->value) + "?";
           }
         }
       }
@@ -164,6 +168,7 @@ bool ABIGenerator::addAction(FunctionStmt *stmt) {
       continue;
     }
 
+    // LOG("++++ {} {} {} {}", a.name, a.type, get_type_name(a.type), a.defaultValue);
     ABIStructField field = {a.name, ""};
     if (auto *value = a.type->getString()) {
       field.type = "string";
@@ -177,9 +182,12 @@ bool ABIGenerator::addAction(FunctionStmt *stmt) {
         LOG("List: {}", expr->toString());
     } else if (auto *expr = a.type->getIndex()) {
         // ExprPtr expr, index;
-        LOG("+++++++expr.expr.type: {}", get_type_name(expr->expr));
-        LOG("+++++++expr.index.type: {}", get_type_name(expr->index));
-        LOG("++++++++IndexExpr: {} {}", expr->expr->getId()->value, expr->index->getId()->value);
+        auto id = expr->expr->getId();
+        if (id->value == "Optional") {
+            field.type = parse_abi_type(expr->index->getId()->value) + "?";
+        } else if (id->value == "List") {
+            field.type = parse_abi_type(expr->index->getId()->value) + "[]";
+        }
     }
     abi_struct.fields.emplace_back(field);
   }

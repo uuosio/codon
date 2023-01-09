@@ -82,7 +82,7 @@ std::map<string, string> abi_types_map = {
   {"TimePointSec", "time_point_sec"},
   {"BlockTimestampType", "block_timestamp_type"},
   {"Name", "name"},
-  {"Bytes", "bytes"},
+  {"bytes", "bytes"},
   {"str", "string"},
   {"Checksum160", "checksum160"},
   {"Checksum256", "checksum256"},

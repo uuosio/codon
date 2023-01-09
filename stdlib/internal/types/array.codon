@@ -39,3 +39,4 @@ class Array:
         return (e - s, self.ptr + s)
 
 array = Array
+bytes = Array[byte]

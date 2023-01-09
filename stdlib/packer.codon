@@ -1,13 +1,13 @@
 from internal.gc import sizeof, atomic
 
 def packed_var_u32_length(val: u32) -> int:
-	n = 0
-	while True:
-		val >>= 7
-		n += 1
-		if val <= 0:
-			break
-	return n
+    n = 0
+    while True:
+        val >>= 7u32
+        n += 1
+        if val <= 0u32:
+            break
+    return n
 
 class Encoder(object):
     buf: Array[byte]
@@ -229,6 +229,33 @@ class byte:
     def __size__(self) -> int:
         return 1
 
+
+@extend
+class Array:
+    def __repr__(self) -> str:
+        if isinstance(self.ptr[0], byte):
+            return f"b'{str(self.ptr, self.len)}'"
+        return f"{self.ptr}"
+
+    def __pack__(self, enc: Encoder):
+        enc.pack_var_u32(u32(self.len))
+        for i in range(self.len):
+            self.ptr[i].__pack__(enc)
+
+    def __unpack__(dec: Decoder) -> Array[T]:
+        n = dec.unpack_var_u32()
+        ret = Array[T](int(n))
+        for i in range(ret.len):
+            ret.ptr[i] = T.__unpack__(dec)
+        return ret
+
+    def __size__(self) -> int:
+        size = 0
+        for i in range(self.len):
+            size += self.ptr[i].__size__()
+        size += packed_var_u32_length(u32(self.len))
+        return size
+
 @extend
 class str:
     def __pack__(self, enc: Encoder):
@@ -243,7 +270,7 @@ class str:
         return str(p, n)
 
     def __size__(self) -> int:
-        return 1 + len(self)
+        return packed_var_u32_length(u32(len(self))) + len(self)
 
 @extend
 class List:
@@ -266,7 +293,7 @@ class List:
         size = 0
         for x in self:
             size += x.__size__()
-        return 1 + size
+        return packed_var_u32_length(u32(len(self))) + size
 
 # @extend
 # class DynamicTuple:

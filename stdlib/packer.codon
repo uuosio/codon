@@ -1,5 +1,7 @@
 from internal.gc import sizeof, atomic
 from internal.types.optional import unwrap
+# int memcmp ( const void * ptr1, const void * ptr2, size_t num );
+from C import memcmp(cobj, cobj, u32) -> i32
 
 def packed_var_u32_length(val: u32) -> int:
     n = 0
@@ -232,6 +234,14 @@ class byte:
 
 @extend
 class Array:
+
+    def __eq__(self, other: Array[T]) -> bool:
+        if self.len != other.len:
+            return False
+        if memcmp(self.ptr, other.ptr, u32(self.len)) == 0i32:
+            return True
+        return False
+
     def __repr__(self) -> str:
         if isinstance(self.ptr, Ptr[byte]):
             return f"b'{str(self.ptr, self.len)}'"

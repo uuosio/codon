@@ -1,0 +1,14 @@
+# generated main function by codon
+from C import main(Int[32], Ptr[Ptr[byte]]) -> Int[32]
+
+import sys
+
+@export
+def codon_main(argc: Int[32], argv: Ptr[Ptr[byte]]) -> Int[32]:
+    main(argc, argv)
+
+def run():
+    print("+++sys.argv:", sys.argv)
+
+run()
+

@@ -20,6 +20,12 @@ install/
 extra/python/src/jit.cpp
 extra/jupyter/build/
 
+tests
+*.abi
+*.wasm
+*.wast
+*.ll
+
 # Packages #
 ############
 # it's better to unpack these files and commit the raw source

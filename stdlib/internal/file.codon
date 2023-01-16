@@ -2,6 +2,13 @@
 
 from internal.gc import realloc, free
 
+@export
+def __strlen(a: cobj) -> int:
+    n = 0
+    while a[n] != byte(0):
+        n += 1
+    return n
+
 class File:
     sz: int
     buf: Ptr[byte]
@@ -114,7 +121,7 @@ def _gz_errcheck(stream: cobj):
     errnum = i32(0)
     msg = _C.gzerror(stream, __ptr__(errnum))
     if msg and msg[0]:
-        raise IOError(f"zlib error: {str(msg, _C.strlen(msg))}")
+        raise IOError(f"zlib error: {str(msg, __strlen(msg))}")
 
 class gzFile:
     sz: int
@@ -144,7 +151,7 @@ class gzFile:
                     return -1
                 break
 
-            offset += _C.strlen(self.buf + offset)
+            offset += __strlen(self.buf + offset)
 
             if self.buf[offset - 1] == byte(10):  # '\n'
                 break

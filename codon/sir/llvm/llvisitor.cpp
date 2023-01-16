@@ -806,7 +806,7 @@ void LLVMVisitor::visit(const Module *x) {
   auto *initFunc = llvm::cast<llvm::Function>(
       M->getOrInsertFunction("seq_init", B->getVoidTy(), B->getInt32Ty()).getCallee());
   auto *strlenFunc = llvm::cast<llvm::Function>(
-      M->getOrInsertFunction("strlen", B->getInt64Ty(), B->getInt8PtrTy()).getCallee());
+      M->getOrInsertFunction("__strlen", B->getInt64Ty(), B->getInt8PtrTy()).getCallee());
 
   auto *canonicalMainFunc = llvm::cast<llvm::Function>(
       M->getOrInsertFunction("main", B->getInt32Ty(), B->getInt32Ty(),
@@ -870,10 +870,10 @@ void LLVMVisitor::visit(const Module *x) {
   B->CreateCall(initFunc, B->getInt32(flags));
 
   // Put the entire program in a new function
+  auto *proxyMainTy = llvm::FunctionType::get(B->getVoidTy(), {}, false);
+  auto *proxyMain = llvm::cast<llvm::Function>(
+      M->getOrInsertFunction("codon.proxy_main", proxyMainTy).getCallee());
   {
-    auto *proxyMainTy = llvm::FunctionType::get(B->getVoidTy(), {}, false);
-    auto *proxyMain = llvm::cast<llvm::Function>(
-        M->getOrInsertFunction("codon.proxy_main", proxyMainTy).getCallee());
     proxyMain->setLinkage(llvm::GlobalValue::PrivateLinkage);
     proxyMain->setPersonalityFn(
         llvm::cast<llvm::Constant>(makePersonalityFunc().getCallee()));
@@ -912,6 +912,52 @@ void LLVMVisitor::visit(const Module *x) {
 
   B->SetInsertPoint(exitBlock);
   B->CreateRet(B->getInt32(0));
+
+{
+  auto *canonicalMainFunc = llvm::cast<llvm::Function>(
+      M->getOrInsertFunction("__start", B->getVoidTy())
+          .getCallee());
+
+  canonicalMainFunc->setPersonalityFn(
+      llvm::cast<llvm::Constant>(makePersonalityFunc().getCallee()));
+  // auto argiter = canonicalMainFunc->arg_begin();
+  // llvm::Value *argc = argiter++;
+  // llvm::Value *argv = argiter;
+  // argc->setName("argc");
+  // argv->setName("argv");
+
+  // The following generates code to put program arguments in an array, i.e.:
+  //    for (int i = 0; i < argc; i++)
+  //      array[i] = {strlen(argv[i]), argv[i]}
+  auto *entryBlock = llvm::BasicBlock::Create(*context, "entry", canonicalMainFunc);
+  // auto *loopBlock = llvm::BasicBlock::Create(*context, "loop", canonicalMainFunc);
+  // auto *bodyBlock = llvm::BasicBlock::Create(*context, "body", canonicalMainFunc);
+  auto *exitBlock = llvm::BasicBlock::Create(*context, "exit", canonicalMainFunc);
+
+  B->SetInsertPoint(entryBlock);
+  B->CreateBr(exitBlock);
+
+  B->SetInsertPoint(exitBlock);
+  // llvm::Value *argStorage = getVar(x->getArgVar());
+  // seqassertn(argStorage, "argument storage missing");
+  // B->CreateStore(arr, argStorage);
+  const int flags = (db.debug ? SEQ_FLAG_DEBUG : 0) |
+                    (db.capture ? SEQ_FLAG_CAPTURE_OUTPUT : 0) |
+                    (db.standalone ? SEQ_FLAG_STANDALONE : 0);
+  B->CreateCall(initFunc, B->getInt32(flags));
+
+  // Put the entire program in a new function
+  {
+    // actually make the call
+    B->SetInsertPoint(exitBlock);
+    B->CreateCall(proxyMain);
+  }
+
+  B->SetInsertPoint(exitBlock);
+  // B->CreateRet(B->getInt32(0));
+  B->CreateRetVoid();
+}
+
 }
 
 llvm::DISubprogram *LLVMVisitor::getDISubprogramForFunc(const Func *x) {

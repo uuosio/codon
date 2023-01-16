@@ -1,0 +1,106 @@
+from internal import RawData
+from utils import hex2bytes
+
+Checksum160 = RawData[20]
+Checksum256 = RawData[32]
+Checksum512 = RawData[64]
+
+class ECCPublicKey(object): 
+    data: RawData[33]
+
+    def __init__(self, data: bytes=bytes()):
+        self.data = RawData[33](data)
+
+    def from_hex(hex: str) -> ECCPublicKey:
+        return ECCPublicKey(hex2bytes(hex))
+
+    def __eq__(self, other: ECCPublicKey) -> bool:
+        return self.data == other.data
+
+    def __pack__(self, enc: Encoder):
+        assert self.data.len == 33
+        enc.write(self.data.ptr, self.data.len)
+
+    def __unpack__(dec: Decoder) -> ECCPublicKey:
+        data = bytes(33)
+        dec.read(data.ptr.as_byte(), data.len)
+        return ECCPublicKey(data)
+
+    def __size__(self) -> int:
+        assert self.data.len == 33
+        return 33
+
+@packer
+class Signature(object): 
+    ty: u8
+    data: RawData[65]
+
+    def __eq__(self, other: ECCPublicKey) -> bool:
+        return self.data == other.data and self.ty == other.ty
+
+UserPresence_None: Static[int] = 0
+UserPresence_Present: Static[int] = 1
+UserPresence_Verified: Static[int] = 2
+
+@packer
+class WebAuthNPublicKey(object):
+    key: ECCPublicKey
+    user_presence: u8
+    rpid: str
+
+    def __eq__(self, other: WebAuthNPublicKey) -> bool:
+        return self.key == other.key and self.user_presence == other.user_presence and self.rpid == other.rpid
+
+class PublicKey(object):
+    k1: Optional[ECCPublicKey]
+    r1: Optional[ECCPublicKey]
+    webauthn: Optional[WebAuthNPublicKey]
+
+    def __init__(self, k1: Optional[ECCPublicKey] = None, r1: Optional[ECCPublicKey] = None, webauthn: Optional[WebAuthNPublicKey] = None):
+        n = 0
+        if k1:
+            n += 1
+        if r1:
+            n += 1
+        if webauthn:
+            n += 1
+        assert n <= 1
+        self.k1 = k1
+        self.r1 = r1
+        self.webauthn = webauthn
+
+    def __eq__(self, other: PublicKey) -> bool:
+        return self.k1 == other.k1 and self.r1 == other.r1 and self.webauthn == other.webauthn
+
+    def __pack__(self, enc: Encoder):
+        if self.k1:
+            enc.pack_byte(0)
+            self.k1.__pack__(enc)
+        elif self.r1:
+            enc.pack_byte(1)
+            self.r1.__pack__(enc)
+        elif self.webauthn:
+            enc.pack_byte(2)
+            self.webauthn.__pack__(enc)
+
+    def __unpack__(dec: Decoder) -> PublicKey:
+        ty = dec.read_byte()
+        if ty == 0:
+            return PublicKey(k1=dec.unpack(ECCPublicKey))
+        elif ty == 1:
+            return PublicKey(r1=dec.unpack(ECCPublicKey))
+        elif ty == 2:
+            return PublicKey(webauthn=dec.unpack(WebAuthNPublicKey))
+        else:
+            raise ValueError("__unpack__: invalid public key type")
+
+    def __size__(self) -> int:
+        size = 1
+        if self.k1:
+            size += self.k1.__size__()
+        elif self.r1:
+            size += self.r1.__size__()
+        elif self.webauthn:
+            size += self.webauthn.__size__()
+        else:
+            raise ValueError("__size__: invalid public key type")

@@ -1,3 +1,5 @@
+# Build codon with the support of wasm
+
 In the codon source directory, run the following command to build llvm
 
 ```bash
@@ -17,12 +19,26 @@ Build codon with the wasm runtime
 - download wasi-sdk from https://github.com/WebAssembly/wasi-sdk/tags
 - run the following command to build with codon wasm runtime
 
+
+
+cmake -S . -B build -G Ninja \
+    -DBUILD_WASM=TRUE \
+    -DWASI_SDK_PREFIX=/Volumes/e/wasm/wasi-sdk-17.0 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_BUILD_DIR=/Volumes/e/github/llvm-project/build \
+    -DLLVM_DIR=/Volumes/e/github/llvm-project/build/lib/cmake/llvm \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++
+
 ```bash
 cmake -S . -B build -G Ninja \
     -DBUILD_WASM=TRUE \
     -DWASI_SDK_PREFIX=path/to/wasi-sdk \
     -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_DIR=llvm-project/build \
+    -DLLVM_BUILD_DIR=llvm-project/build \
+    -DLLVM_DIR=llvm-project/build/lib/cmake/llvm \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++
+
+cmake --build build --config Release
 ```

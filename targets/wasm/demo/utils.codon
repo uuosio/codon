@@ -1,0 +1,6 @@
+def hex2bytes(s: str) -> bytes:
+    assert len(s) % 2 == 0
+    ret = bytes(len(s) // 2)
+    for i in range(len(s) // 2):
+        ret[i] = byte(int(s[i*2:i*2+2], 16))
+    return ret

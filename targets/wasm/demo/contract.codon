@@ -1,0 +1,9 @@
+class Contract(object):
+    receiver: u64
+    first_receiver: u64
+    action: u64
+
+    def __init__(self, receiver: u64, first_receiver: u64, action: u64):
+        self.receiver = receiver
+        self.first_receiver = first_receiver
+        self.action = action

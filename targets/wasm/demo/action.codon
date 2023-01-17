@@ -1,0 +1,47 @@
+from C import send_inline(cobj, u32) -> None
+from C import read_action_data(cobj, u32) -> u32
+from C import action_data_size() -> u32
+
+from name import Name
+from packer import Encoder, pack
+
+@packer
+class PermissionLevel(object):
+    actor: Name
+    permission: Name
+
+    def __init__(self, actor: Name, permission: Name):
+        self.actor = actor
+        self.permission = permission
+
+@packer
+class Action(object):
+    account: Name
+    name: Name
+    authorization: List[PermissionLevel]
+    data: str
+
+    def __init__(self, account: Name = Name(), name: Name = Name(), authorization: List[PermissionLevel] = [], data: str = ""):
+        self.account = account
+        self.name = name
+        self.authorization = authorization
+        self.data = data
+
+    def send(self):
+        raw = pack(self)
+        send_inline(raw.ptr, u32(raw.len))
+
+def unpack_action(T: type) -> T:
+    _size = action_data_size()
+    size = int(_size)
+    buf = Array[byte](size)
+    read_action_data(buf.ptr, _size)
+    dec = Decoder(buf.ptr, size)
+    return dec.unpack(T)
+
+def new_action_decoder() -> Decoder:
+    _size = action_data_size()
+    size = int(_size)
+    buf = Array[byte](size)
+    read_action_data(buf.ptr.as_byte(), _size)
+    return Decoder(buf.ptr, size)

@@ -1,0 +1,66 @@
+from packer import packed_var_u32_length
+from C import memcmp(cobj, cobj, u32) -> i32
+
+@packer
+class VarInt32(object):
+    def __init__(self):
+        raise NotImplementedError()
+
+class VarUint32(object):
+    val: u32
+
+    def __init__(self, val: u32 = 0):
+        self.val = val
+
+    def __eq__(self, other: VarUint32) -> bool:
+        return self.val == other.val
+
+    def __pack__(self, enc: Encoder):
+        enc.pack_var_u32(self.val)
+
+    def __unpack__(dec: Decoder) -> VarUint32:
+        return VarUint32(dec.unpack_var_u32())
+        
+    def __size__(self) -> int:
+        return packed_var_u32_length(self.val)
+
+class RawData[N: Static[int]](object): 
+    data: bytes
+
+    def __init__(self, data: bytes=bytes(N)):
+        assert data.len == N
+        self.data = data
+
+    def __pack__(self, enc: Encoder):
+        assert self.data.len == N
+        enc.write(self.data.ptr, self.data.len)
+
+    def __unpack__(dec: Decoder) -> RawData[N]:
+        data = bytes(N)
+        dec.read(data.ptr, data.len)
+        return RawData[N](data)
+
+    def __size__(self) -> int:
+        return N
+    
+    def __eq__(self, other: RawData[N]):
+        if self.data.len != other.data.len:
+            return False
+        return memcmp(self.data.ptr, other.data.ptr, u32(self.data.len)) == 0i32
+
+@packer
+class Float128(object):
+    val: RawData[16]
+
+@packer
+class TimePoint(object): 
+    elapsed: u64
+
+@packer
+class TimePointSec(object): 
+    seconds: u32
+
+@packer
+class BlockTimestampType:
+    slot: u32
+

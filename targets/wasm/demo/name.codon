@@ -1,0 +1,66 @@
+charmap = ".12345abcdefghijklmnopqrstuvwxyz"
+def n2s(n: u64) -> str:
+    '''
+    Convert an EOS name object to a string
+    '''
+    mask: u64 = 0xF800000000000000u64
+    v: u64 = n
+    s = ''
+    for i in range(13):
+        if v == 0u64:
+            return s
+        indx = (v & mask) >> (60u64 if i == 12 else 59u64)
+        s += charmap[int(indx)]
+        v <<= 5u64
+    return s
+
+def char_to_index(c: int) -> u64:
+    if c >= 97 and c <= 122: # a..z
+        return u64(c - 97 + 6)
+    if c >= 49 and c <= 53: # 1..5
+        return u64(c - 49 + 1)
+    elif c == 46: # .
+        return 0u64
+    else:
+        raise Exception("invalid character")
+
+def s2n(s: str) -> u64:
+    '''
+    Convert a string to an EOS name
+    '''
+    v = 0u64
+    for i in range(len(s)):
+        c = s[i]
+        if c == '.':
+            break
+        v <<= 5u64
+        v |= char_to_index(ord(c))
+    v <<=  u64(4 + 5*(12 - len(s)))
+    if len(s) == 13:
+        v |= char_to_index(ord(s[12]))
+    return v
+
+@packer
+class Name(object):
+    value: u64
+
+    def __init__(self):
+        self.value = 0
+
+    def __eq__(self, other: Name) -> bool:
+        return self.value == other.value
+
+    def __init__(self, name: str):
+        self.value = s2n(name)
+
+    def __str__(self):
+        return n2s(self.value)
+
+@extend
+class str:
+    def __prefix_n__(s: str, N: Static[int]) -> Name:
+        '''
+        Convert a string to an EOS name
+        Example: n"hello"
+        '''
+        return Name(s)

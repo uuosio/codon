@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Exaloop Inc. <https://exaloop.io>
+// Copyright (C) 2022-2023 Exaloop Inc. <https://exaloop.io>
 
 #include <memory>
 #include <string>
@@ -322,8 +322,8 @@ ExprPtr SimplifyVisitor::makeAnonFn(std::vector<StmtPtr> suite,
     prependStmts->push_back(fs->stmts[0]);
     for (StmtPtr s = fs->stmts[1]; s;) {
       if (auto suite = s->getSuite()) {
-        // Suites can only occur when __internal__.undef is inserted for a partial call
-        // argument. Extract __internal__.undef checks and prepend them
+        // Suites can only occur when captures are inserted for a partial call
+        // argument.
         seqassert(suite->stmts.size() == 2, "invalid function transform");
         prependStmts->push_back(suite->stmts[0]);
         s = suite->stmts[1];

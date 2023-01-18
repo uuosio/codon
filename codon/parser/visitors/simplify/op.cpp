@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Exaloop Inc. <https://exaloop.io>
+// Copyright (C) 2022-2023 Exaloop Inc. <https://exaloop.io>
 
 #include <string>
 #include <tuple>
@@ -95,8 +95,12 @@ void SimplifyVisitor::visit(IndexExpr *expr) {
   }
 }
 
-/// Ignore it. Already transformed. Sometimes called again
-/// during class extension.
-void SimplifyVisitor::visit(InstantiateExpr *expr) {}
+/// Already transformed. Sometimes needed again
+/// for identifier analysis.
+void SimplifyVisitor::visit(InstantiateExpr *expr) {
+  transformType(expr->typeExpr);
+  for (auto &tp : expr->typeParams)
+    transform(tp, true);
+}
 
 } // namespace codon::ast

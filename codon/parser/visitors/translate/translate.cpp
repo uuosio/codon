@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Exaloop Inc. <https://exaloop.io>
+// Copyright (C) 2022-2023 Exaloop Inc. <https://exaloop.io>
 
 #include "translate.h"
 
@@ -7,11 +7,11 @@
 #include <string>
 #include <vector>
 
+#include "codon/cir/transform/parallel/schedule.h"
+#include "codon/cir/util/cloning.h"
 #include "codon/parser/ast.h"
 #include "codon/parser/common.h"
 #include "codon/parser/visitors/translate/translate_ctx.h"
-#include "codon/sir/transform/parallel/schedule.h"
-#include "codon/sir/util/cloning.h"
 
 using codon::ir::cast;
 using codon::ir::transform::parallel::OMPSched;

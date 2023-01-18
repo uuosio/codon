@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Exaloop Inc. <https://exaloop.io>
+// Copyright (C) 2022-2023 Exaloop Inc. <https://exaloop.io>
 
 #pragma once
 
@@ -7,11 +7,11 @@
 #include <unordered_set>
 #include <vector>
 
+#include "codon/cir/cir.h"
+#include "codon/cir/types/types.h"
 #include "codon/parser/cache.h"
 #include "codon/parser/common.h"
 #include "codon/parser/ctx.h"
-#include "codon/sir/sir.h"
-#include "codon/sir/types/types.h"
 
 namespace codon::ast {
 
